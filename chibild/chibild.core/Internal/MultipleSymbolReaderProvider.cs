@@ -41,29 +41,31 @@ internal sealed class MultipleSymbolReaderProvider : ISymbolReaderProvider
 
     private ISymbolReader? TryGetSymbolReader<TSymbolReaderProvider>(
         TSymbolReaderProvider provider, ModuleDefinition module,
-        string fullPath, string extension)
+        string fullPath, string? extension)
         where TSymbolReaderProvider : ISymbolReaderProvider
     {
-        var path = Path.Combine(
-            CommonUtilities.GetDirectoryPath(fullPath),
-            Path.GetFileNameWithoutExtension(fullPath) + extension);
+        var path = extension != null ?
+            Path.Combine(
+                CommonUtilities.GetDirectoryPath(fullPath),
+                Path.GetFileNameWithoutExtension(fullPath) + extension) :
+            fullPath;
 
         try
         {
             if (File.Exists(path))
             {
                 var ms = new MemoryStream();
-                using (var mdbStream = new FileStream(
-                    path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (var stream = new FileStream(
+                    path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024))
                 {
-                    mdbStream.CopyTo(ms);
+                    stream.CopyTo(ms);
                 }
                 ms.Position = 0;
 
                 var sr = provider.GetSymbolReader(module, ms);
                 if (this.loaded.Add(path))
                 {
-                    this.logger.Debug($"Symbol loaded from: {path}");
+                    this.logger.Debug($"Symbol is loaded from: {path}");
                 }
                 
                 return sr;
@@ -95,13 +97,14 @@ internal sealed class MultipleSymbolReaderProvider : ISymbolReaderProvider
                     {
                         try
                         {
-                            var sr = embeddedProvider.GetSymbolReader(module, fullPath);
-                            if (this.loaded.Add(fullPath))
+                            if (this.TryGetSymbolReader(embeddedProvider, module, fullPath, null) is { } sr2)
                             {
-                                this.logger.Debug($"Embedded symbol loaded from: {fullPath}");
+                                if (this.loaded.Add(fullPath))
+                                {
+                                    this.logger.Debug($"Embedded symbol is loaded from: {fullPath}");
+                                }
+                                return sr2;
                             }
-
-                            return sr;
                         }
                         catch (Exception ex)
                         {
@@ -119,7 +122,7 @@ internal sealed class MultipleSymbolReaderProvider : ISymbolReaderProvider
 
                     if (this.notFound.Add(fileName))
                     {
-                        this.logger.Trace($"Symbol not found: {fileName}");
+                        this.logger.Trace($"Symbol is not found: {fileName}");
                     }
                 }
             }

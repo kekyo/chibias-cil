@@ -157,11 +157,8 @@ public sealed class CilLinker
                             this.logger,
                             baseInputPath,
                             relativePath,
-                            // Create this assembly specific resolver,
-                            // because shared resolver can not resolve on multi-threaded context.
-                            // At the cost of having to load it again later in the primary assembly resolver.
                             this.CreateAssemblyResolver(
-                                ReadingMode.Immediate,
+                                ReadingMode.Deferred,
                                 assemblyReferenceBasePaths)),
                     };
                     break;
@@ -194,11 +191,8 @@ public sealed class CilLinker
                                 this.logger,
                                 foundEntry.basePath,
                                 foundEntry.fileName,
-                                // Create this assembly specific resolver,
-                                // because shared resolver can not resolve on multi-threaded context.
-                                // At the cost of having to load it again later in the primary assembly resolver.
                                 this.CreateAssemblyResolver(
-                                    ReadingMode.Immediate,
+                                    ReadingMode.Deferred,
                                     assemblyReferenceBasePaths)),
                         };
                     }
