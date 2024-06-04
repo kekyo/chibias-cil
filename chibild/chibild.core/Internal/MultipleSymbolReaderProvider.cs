@@ -1,4 +1,4 @@
-﻿/////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////
 //
 // chibicc-toolchain - The specialized backend toolchain for chibicc-cil
 // Copyright (c) Kouji Matsui(@kozy_kekyo, @kekyo @mastodon.cloud)
@@ -65,7 +65,7 @@ internal sealed class MultipleSymbolReaderProvider : ISymbolReaderProvider
                 var sr = provider.GetSymbolReader(module, ms);
                 if (this.loaded.Add(path))
                 {
-                    this.logger.Debug($"Symbol is loaded from: {path}");
+                    this.logger.Debug($"Debug symbol is loaded from: {path}");
                 }
                 
                 return sr;
@@ -101,7 +101,7 @@ internal sealed class MultipleSymbolReaderProvider : ISymbolReaderProvider
                             {
                                 if (this.loaded.Add(fullPath))
                                 {
-                                    this.logger.Debug($"Embedded symbol is loaded from: {fullPath}");
+                                    this.logger.Debug($"Embedded debug symbol is loaded from: {fullPath}");
                                 }
                                 return sr2;
                             }
@@ -122,7 +122,7 @@ internal sealed class MultipleSymbolReaderProvider : ISymbolReaderProvider
 
                     if (this.notFound.Add(fileName))
                     {
-                        this.logger.Trace($"Symbol is not found: {fileName}");
+                        this.logger.Trace($"Debug symbol is not found: {fileName}");
                     }
                 }
             }

@@ -55,6 +55,39 @@ namespace chibicc.toolchain.Internal
         public static readonly bool IsInWindows =
             Environment.OSVersion.Platform == PlatformID.Win32NT;
 
+        public static string? GetHomePath()
+        {
+            if (IsInWindows)
+            {
+                var homeDrive = Environment.GetEnvironmentVariable("HOMEDRIVE");
+                var homePath = Environment.GetEnvironmentVariable("HOMEPATH");
+                if (!string.IsNullOrWhiteSpace(homeDrive) &&
+                    !string.IsNullOrWhiteSpace(homePath))
+                {
+                    var path1 = Path.GetFullPath(
+                        $"{homeDrive}{homePath}".
+                        TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                    if (Directory.Exists(path1))
+                    {
+                        return path1;
+                    }
+                }
+            }
+
+            if (Environment.GetEnvironmentVariable("HOME") is { } path2 &&
+                !string.IsNullOrWhiteSpace(path2))
+            {
+                path2 = Path.GetFullPath(
+                    path2.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                if (Directory.Exists(path2))
+                {
+                    return path2;
+                }
+            }
+
+            return null;
+        }
+
         public static string GetDirectoryPath(string path) =>
             Path.GetDirectoryName(path) is { } d ?
                 Path.GetFullPath(string.IsNullOrWhiteSpace(d) ? "." : d) :

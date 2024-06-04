@@ -64,7 +64,7 @@ public sealed class Assembler
             {
                 // Convert source code to object file.
                 using var outputStream = isDryrun ?
-                    null : ObjectStreamUtilities.OpenObjectStream(outputTemporaryFilePath, true);
+                    null : CompressionStreamUtilities.OpenStream(outputTemporaryFilePath, true);
 
                 if (outputStream != null)
                 {

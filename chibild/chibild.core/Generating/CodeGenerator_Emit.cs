@@ -675,7 +675,7 @@ partial class CodeGenerator
                 return false;
             }
 
-            using var fs = ObjectStreamUtilities.OpenObjectStream(
+            using var fs = CompressionStreamUtilities.OpenStream(
                 objectPath,
                 false);
 
@@ -704,27 +704,6 @@ partial class CodeGenerator
         return false;
     }
     
-    private bool TryUnsafeGetMethod(
-        ModuleDefinition targetModule,
-        InputFragment[] inputFragments,
-        IdentityNode function,
-        out MethodReference method)
-    {
-        foreach (var fragment in inputFragments)
-        {
-            if (fragment.TryGetMethod(
-                function,
-                null,
-                targetModule,
-                out method))
-            {
-                return true;
-            }
-        }
-        method = null!;
-        return false;
-    }
-
     private void AssignEntryPoint(
         string entryPointSymbol)
     {
@@ -755,28 +734,38 @@ partial class CodeGenerator
         string[] prependExecutionSearchPaths,
         MethodDefinition targetMethod)
     {
-        if (this.TryUnsafeGetMethod(
-            targetModule,
-            inputFragments,
-            IdentityNode.Create("__prepend_path_env"),
-            out var m))
+        var function = IdentityNode.Create("__prepend_path_env");
+
+        foreach (var fragment in inputFragments)
         {
-            var method = targetModule.SafeImport(m);
-            var instructions = targetMethod.Body.Instructions;
-
-            foreach (var prependPath in prependExecutionSearchPaths.Reverse())
+            if (fragment.ContainsFunctionAndSchedule(
+                function,
+                null,
+                out var scope) &&
+                fragment.LoadObjectIfRequired(this.logger, false) == LoadObjectResults.Loaded &&
+                fragment.TryGetMethod(
+                    function,
+                    null,
+                    this.targetModule,
+                    out var m))
             {
-                instructions.Insert(0, Instruction.Create(OpCodes.Ldstr, prependPath));
-                instructions.Insert(1, Instruction.Create(OpCodes.Call, method));
+                var method = targetModule.SafeImport(m);
+                var instructions = targetMethod.Body.Instructions;
 
-                this.logger.Information($"Set prepend execution search path: {prependPath}");
+                foreach (var prependPath in prependExecutionSearchPaths.Reverse())
+                {
+                    instructions.Insert(0, Instruction.Create(OpCodes.Ldstr, prependPath));
+                    instructions.Insert(1, Instruction.Create(OpCodes.Call, method));
+
+                    this.logger.Information($"Set prepend execution search path: {prependPath}");
+                }
+
+                return;
             }
         }
-        else
-        {
-            this.caughtError = true;
-            this.logger.Error($"Could not find prepender implementation.");
-        }
+
+        this.caughtError = true;
+        this.logger.Error($"Could not find prepender implementation.");
     }
 
     ///////////////////////////////////////////////////////////////////////////////

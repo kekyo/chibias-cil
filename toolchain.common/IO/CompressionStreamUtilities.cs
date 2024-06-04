@@ -15,9 +15,9 @@ using System.Runtime.CompilerServices;
 
 namespace chibicc.toolchain.IO;
 
-public static class ObjectStreamUtilities
+public static class CompressionStreamUtilities
 {
-    public static Stream OpenObjectStream(
+    public static Stream OpenStream(
         string objectFilePath, bool writable)
     {
         var s = StreamUtilities.OpenStream(objectFilePath, writable);
@@ -34,7 +34,7 @@ public static class ObjectStreamUtilities
     }
 
     [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
-    public static Stream OpenEmbeddedObjectStream(
+    public static Stream OpenEmbeddedStream(
         string objectResourcePath,
         Assembly? assembly = null)
     {

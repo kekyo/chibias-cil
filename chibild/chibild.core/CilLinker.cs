@@ -1,4 +1,4 @@
-﻿/////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////
 //
 // chibicc-toolchain - The specialized backend toolchain for chibicc-cil
 // Copyright (c) Kouji Matsui(@kozy_kekyo, @kekyo @mastodon.cloud)
@@ -62,7 +62,9 @@ public sealed class CilLinker
         string[] libraryReferenceBasePaths,
         string[] assemblyReferenceBasePaths,
         InputReference[] inputReferences,
+        string? injectToAssemblyPath,
         bool isLocationOriginSource,
+        string? cacheBasePath,
         out InputFragment[] fragments)
     {
         // Load input files in parallelism.
@@ -107,7 +109,7 @@ public sealed class CilLinker
                             $"Unable to find the object file: {relativePath}");
                         break;
                     }
-                    using (var fs = ObjectStreamUtilities.OpenObjectStream(
+                    using (var fs = CompressionStreamUtilities.OpenStream(
                         Path.Combine(baseInputPath, relativePath), false))
                     {
                         var tr = new StreamReader(fs, Encoding.UTF8, true);
@@ -144,6 +146,7 @@ public sealed class CilLinker
 
                 // Asssembly:
                 case LibraryPathReference(var relativePath):
+                    var isInjectAssembly = (index == 0) && (relativePath == injectToAssemblyPath);
                     var libraryFilePath = Path.Combine(baseInputPath, relativePath);
                     if (!File.Exists(libraryFilePath))
                     {
@@ -157,7 +160,8 @@ public sealed class CilLinker
                             this.logger,
                             baseInputPath,
                             relativePath,
-                            this.CreateAssemblyResolver(
+                            cacheBasePath,
+                            () => this.CreateAssemblyResolver(
                                 ReadingMode.Deferred,
                                 assemblyReferenceBasePaths)),
                     };
@@ -191,7 +195,8 @@ public sealed class CilLinker
                                 this.logger,
                                 foundEntry.basePath,
                                 foundEntry.fileName,
-                                this.CreateAssemblyResolver(
+                                cacheBasePath,
+                                () => this.CreateAssemblyResolver(
                                     ReadingMode.Deferred,
                                     assemblyReferenceBasePaths)),
                         };
@@ -320,7 +325,9 @@ public sealed class CilLinker
             options.LibraryReferenceBasePaths,
             assemblyReferenceBasePaths,
             totalInputReferences,
+            injectToAssemblyPath,
             produceDebuggingInformation,
+            options.CacheBasePath,
             out var loadedFragments))
         {
             return false;
@@ -350,7 +357,8 @@ public sealed class CilLinker
         // Will be injected exist (loaded) assembly.
         if (injectToAssemblyPath != null)
         {
-            primaryAssembly = ((AssemblyInputFragment)loadedFragments[0]).Assembly;
+            primaryAssembly = ((AssemblyInputFragment)loadedFragments[0]).
+                GetAssembly();
         }
         // Will be created a new assembly.
         else

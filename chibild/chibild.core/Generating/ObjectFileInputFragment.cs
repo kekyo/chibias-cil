@@ -134,6 +134,13 @@ internal sealed class ObjectFileInputFragment :
 
     //////////////////////////////////////////////////////////////
 
+    public override LoadObjectResults LoadObjectIfRequired(
+        ILogger logger,
+        bool isLocationOriginSource) =>
+        LoadObjectResults.Ignored;
+    
+    //////////////////////////////////////////////////////////////
+
     public static bool TryLoad(
         ILogger logger,
         string baseInputPath,

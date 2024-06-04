@@ -10,7 +10,7 @@
 using System;
 using System.Linq;
 
-namespace chibicc.toolchain.Archiving;
+namespace chibicc.toolchain.Generating;
 
 public readonly struct Symbol : IEquatable<Symbol>
 {

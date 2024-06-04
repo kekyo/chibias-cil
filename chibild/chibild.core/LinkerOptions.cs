@@ -229,5 +229,15 @@ public sealed class LinkerOptions
     public string[] PrependExecutionSearchPaths =
         CommonUtilities.Empty<string>();
 
+    public string? CacheBasePath =
+        GetDefaultCacheBasePath();
+
     public bool IsDryRun = false;
+
+    public static string GetDefaultCacheBasePath() =>
+        Path.Combine(
+            CommonUtilities.GetHomePath() ?? Environment.CurrentDirectory,
+            ".cache",
+            "chibild-cil",
+            "symtab");
 }

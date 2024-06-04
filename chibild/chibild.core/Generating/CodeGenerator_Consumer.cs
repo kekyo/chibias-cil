@@ -10,6 +10,7 @@
 using chibicc.toolchain.Internal;
 using chibicc.toolchain.Logging;
 using chibicc.toolchain.Parsing;
+using chibicc.toolchain.Tokenizing;
 using chibild.Internal;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -866,13 +867,13 @@ partial class CodeGenerator
             _ => TypeAttributes.NestedPublic | TypeAttributes.Sealed,
         };
 
-        if (!context.UnsafeGetCoreType("System.Enum", out var setr))
-        {
-            setr = this.CreatePlaceholderType();
-            this.OutputError(
-                enumeration.Token,
-                $"Could not find System.Enum type.");
-        }
+        //if (!context.UnsafeGetCoreType("System.Enum", out var setr))
+        //{
+        //    setr = this.CreatePlaceholderType();
+        //    this.OutputError(
+        //        enumeration.Token,
+        //        $"Could not find System.Enum type.");
+        //}
 
         var enumerationType = new TypeDefinition(
             enumeration.Scope.Scope switch
@@ -884,7 +885,15 @@ partial class CodeGenerator
             },
             enumeration.Name.Identity,
             typeAttributes,
-            context.SafeImport(setr));
+            // HACK: This is immitation TypeReference which is value type supplier.
+            //   Will be replaced strict imported TypeReference.
+            new TypeReference("System", "Enum", context.FallbackModule, context.FallbackModule, true));
+
+        this.DelayLookingUpType(
+            context,
+            TypeParser.UnsafeParse<TypeNode>(Token.Identity("System.Enum")),
+            false,
+            etr => enumerationType.BaseType = context.SafeImport(etr));
 
         this.DelayLookingUpType(
             context,
@@ -963,13 +972,13 @@ partial class CodeGenerator
         typeAttributes |= (structure.IsExplicit?.Value ?? false) ?
             TypeAttributes.ExplicitLayout : TypeAttributes.SequentialLayout;
 
-        if (!context.UnsafeGetCoreType("System.ValueType", out var vttr))
-        {
-            vttr = this.CreatePlaceholderType();
-            this.OutputError(
-                structure.Token,
-                $"Could not find System.ValueType type.");
-        }
+        //if (!context.UnsafeGetCoreType("System.ValueType", out var vttr))
+        //{
+        //    vttr = this.CreatePlaceholderType();
+        //    this.OutputError(
+        //        structure.Token,
+        //        $"Could not find System.ValueType type.");
+        //}
 
         var structureType = new TypeDefinition(
             structure.Scope.Scope switch
@@ -981,13 +990,21 @@ partial class CodeGenerator
             },
             structure.Name.Identity,
             typeAttributes,
-            context.SafeImport(vttr));
+            // HACK: This is immitation TypeReference which is value type supplier.
+            //   Will be replaced strict imported TypeReference.
+            new TypeReference("System", "ValueType", context.FallbackModule, context.FallbackModule, true));
 
         if (structure.PackSize?.Value is { } packSize)
         {
             structureType.PackingSize = (short)packSize;
             structureType.ClassSize = 0;
         }
+
+        this.DelayLookingUpType(
+            context,
+            TypeParser.UnsafeParse<TypeNode>(Token.Identity("System.ValueType")),
+            false,
+            vtr => structureType.BaseType = context.SafeImport(vtr));
 
         foreach (var structureField in structure.Fields)
         {

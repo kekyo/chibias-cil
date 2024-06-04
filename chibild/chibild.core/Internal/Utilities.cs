@@ -33,6 +33,11 @@ internal enum chmodFlags
 
 internal static class Utilities
 {
+    private static readonly HashSet<string> invalidPathStrings = new()
+    {
+        ":", "//", @"\\",
+    };
+
     public const int EINTR = 4;
     
     [DllImport("libc", SetLastError = true)]

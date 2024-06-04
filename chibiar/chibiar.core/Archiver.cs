@@ -7,6 +7,12 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////
 
+using chibiar.Cli;
+using chibicc.toolchain.Archiving;
+using chibicc.toolchain.Generating;
+using chibicc.toolchain.Internal;
+using chibicc.toolchain.IO;
+using chibicc.toolchain.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,11 +20,6 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using chibiar.Cli;
-using chibicc.toolchain.Archiving;
-using chibicc.toolchain.Internal;
-using chibicc.toolchain.IO;
-using chibicc.toolchain.Logging;
 
 namespace chibiar;
 
@@ -216,11 +217,11 @@ public sealed class Archiver
         
             using var outputStream = symbolTableEntry.Open();
 
-            ArchiverUtilities.WriteSymbolTable(outputStream, symbolLists);
+            SymbolUtilities.WriteSymbolTable(outputStream, symbolLists);
         }
         else
         {
-            ArchiverUtilities.WriteSymbolTable(new MemoryStream(), symbolLists);
+            SymbolUtilities.WriteSymbolTable(new MemoryStream(), symbolLists);
         }
     }
 

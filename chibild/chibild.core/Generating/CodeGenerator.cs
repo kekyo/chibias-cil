@@ -169,18 +169,22 @@ internal sealed partial class CodeGenerator
         {
             found = false;
 #if DEBUG
-            foreach (var currentFragment in inputFragments.
-                OfType<ArchivedObjectInputFragment>())
+            foreach (var currentFragment in inputFragments)
             {
                 switch (currentFragment.LoadObjectIfRequired(
                     this.logger,
                     isLocationOriginSource))
                 {
-                    case ArchivedObjectInputFragment.LoadObjectResults.Loaded:
-                        found = true;
-                        this.ConsumeFragment(currentFragment, inputFragments);
+                    case LoadObjectResults.Loaded:
+                        if (currentFragment is ArchivedObjectInputFragment afif)
+                        {
+                            // This consume may cause another `InputFragment` to become `Required` state.
+                            // Therefore, it is a `do-while` loop to check again.
+                            found = true;
+                            this.ConsumeFragment(afif, inputFragments);
+                        }
                         break;
-                    case ArchivedObjectInputFragment.LoadObjectResults.Ignored:
+                    case LoadObjectResults.Ignored:
                         break;
                     default:
                         this.caughtError = true;
@@ -192,26 +196,29 @@ internal sealed partial class CodeGenerator
                 new() { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) },
                 currentFragment =>
                 {
-                    if (currentFragment is ArchivedObjectInputFragment afif)
+                    switch (currentFragment.LoadObjectIfRequired(
+                        this.logger,
+                        isLocationOriginSource))
                     {
-                        switch (afif.LoadObjectIfRequired(
-                            this.logger,
-                            isLocationOriginSource))
-                        {
-                            case ArchivedObjectInputFragment.LoadObjectResults.Loaded:
+                        case LoadObjectResults.Loaded:
+                            if (currentFragment is ArchivedObjectInputFragment afif)
+                            {
+                                // This consume may cause another `InputFragment` to become `Required` state.
+                                // Therefore, it is a `do-while` loop to check again.
                                 found = true;
                                 this.ConsumeFragment(afif, inputFragments);
-                                break;
-                            case ArchivedObjectInputFragment.LoadObjectResults.Ignored:
-                                break;
-                            default:
-                                this.caughtError = true;
-                                break;
-                        }
+                            }
+                            break;
+                        case LoadObjectResults.Ignored:
+                            break;
+                        default:
+                            this.caughtError = true;
+                            break;
                     }
                 });
 #endif
         }
+        // Repeat if at least one `ArchivedObjectInputFragment` is processed and there are no errors.
         while (found && !this.caughtError);
     }
 

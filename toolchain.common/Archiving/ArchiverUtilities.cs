@@ -7,7 +7,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////
 
-using System;
+using chibicc.toolchain.Generating;
 using chibicc.toolchain.Internal;
 using chibicc.toolchain.Parsing;
 using chibicc.toolchain.Tokenizing;
@@ -32,11 +32,9 @@ public static class ArchiverUtilities
         Structure,
     }
     
-    private static IEnumerable<Symbol> InternalEnumerateSymbolsFromObjectFile(
-        Stream objectFileStream)
+    private static IEnumerable<Symbol> InternalEnumerateSymbols(
+        TextReader tr)
     {
-        var tr = new StreamReader(objectFileStream, Encoding.UTF8, true);
-
         var state = ObjectSymbolStates.Idle;
         string? currentDirective = null;
         string? currentScope = null;
@@ -133,27 +131,11 @@ public static class ArchiverUtilities
     }
 
     public static IEnumerable<Symbol> EnumerateSymbolsFromObjectFile(
-        Stream objectFileStream) =>
-        InternalEnumerateSymbolsFromObjectFile(objectFileStream).
-        Distinct();
-
-    public static void WriteSymbolTable(
-        Stream symbolTableStream,
-        SymbolList[] symbolLists)
+        Stream objectFileStream)
     {
-        var tw = new StreamWriter(symbolTableStream, Encoding.UTF8);
-
-        foreach (var symbolList in symbolLists)
-        {
-            tw.WriteLine($".object {symbolList.ObjectName}");
-
-            foreach (var symbol in symbolList.Symbols.Distinct())
-            {
-                tw.WriteLine($"    {symbol.Directive} {symbol.Scope} {symbol.Name}{(symbol.MemberCount is { } mc ? $" {mc}" : "")}");
-            }
-        }
-
-        tw.Flush();
+        var tr = new StreamReader(objectFileStream, Encoding.UTF8, true);
+        return InternalEnumerateSymbols(tr).
+            Distinct();
     }
     
     public static IEnumerable<SymbolList> EnumerateSymbolTable(
@@ -169,54 +151,10 @@ public static class ArchiverUtilities
             using var stream = entry.Open();
             var tr = new StreamReader(stream, Encoding.UTF8, true);
 
-            Token? currentObjectName = null;
-            var symbols = new List<Symbol>();            
-            
-            foreach (var tokens in CilTokenizer.TokenizeAll("", SymbolTableFileName, tr).
-                Where(tokens => tokens.Length >= 2))
+            foreach (var symbolList in
+                SymbolUtilities.EnumerateSymbolTable(tr, SymbolTableFileName))
             {
-                switch (tokens[0])
-                {
-                    case (TokenTypes.Directive, "object")
-                        when tokens[1] is (TokenTypes.Identity, _):
-                        if (currentObjectName is (_, var objectName))
-                        {
-                            yield return new(
-                                objectName,
-                                symbols.Distinct().ToArray());
-                        }
-                        currentObjectName = tokens[1];
-                        symbols.Clear();
-                        break;
-                    // function public funcfoo
-                    // global public varbar
-                    // enumeration public enumbaz 3
-                    // structure public structhoge 5
-                    case (TokenTypes.Identity, var directive)
-                        when tokens.Length >= 3 &&
-                            tokens[1] is (TokenTypes.Identity, var scope) &&
-                            CommonUtilities.TryParseEnum<Scopes>(scope, out _) &&
-                            tokens[2] is (TokenTypes.Identity, var name):
-                        if (tokens.Length >= 4 &&
-                            tokens[3] is (TokenTypes.Identity, var mc) &&
-                            int.TryParse(mc, NumberStyles.Integer, CultureInfo.InvariantCulture, out var memberCount) &&
-                            memberCount >= 0)
-                        {
-                            symbols.Add(new(directive, scope, name, memberCount));
-                        }
-                        else
-                        {
-                            symbols.Add(new(directive, scope, name, null));
-                        }
-                        break;
-                }
-            }
-
-            if (currentObjectName is var (_, con2))
-            {
-                yield return new(
-                    con2,
-                    symbols.Distinct().ToArray());
+                yield return symbolList;
             }
         }
     }

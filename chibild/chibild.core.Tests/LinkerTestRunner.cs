@@ -119,6 +119,7 @@ internal static class LinkerTestRunner
                         ApplyOptimization = false,
                         CreationOptions = creationOptions,
                         PrependExecutionSearchPaths = prependExecutionSearchPaths ?? Array.Empty<string>(),
+                        //CacheBasePath = null,
                     },
                     injectToAssemblyPath,
                     basePath,
@@ -175,7 +176,10 @@ internal static class LinkerTestRunner
             {
                 try
                 {
-                    logtw.Flush();
+                    if (logfs.CanWrite)
+                    {
+                        logtw.Flush();
+                    }
                 }
                 catch
                 {

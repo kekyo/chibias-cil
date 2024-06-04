@@ -7,11 +7,19 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////
 
+using chibicc.toolchain.Logging;
 using chibicc.toolchain.Parsing;
 using System.IO;
 using Mono.Cecil;
 
 namespace chibild.Generating;
+
+internal enum LoadObjectResults
+{
+    Ignored,
+    Loaded,
+    CaughtError,
+}
 
 internal abstract class InputFragment
 {
@@ -47,6 +55,12 @@ internal abstract class InputFragment
         IdentityNode function,
         FunctionSignatureNode? signature,
         out Scopes scope);
+
+    //////////////////////////////////////////////////////////////
+
+    public abstract LoadObjectResults LoadObjectIfRequired(
+        ILogger logger,
+        bool isLocationOriginSource);
 
     //////////////////////////////////////////////////////////////
 

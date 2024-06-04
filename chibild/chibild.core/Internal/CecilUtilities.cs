@@ -7,6 +7,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////
 
+using chibicc.toolchain.Parsing;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using System;
@@ -14,9 +15,28 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using chibicc.toolchain.Parsing;
 
 namespace chibild.Internal;
+
+internal readonly struct LoadedCAbiMetadata
+{
+    public readonly AssemblyDefinition Assembly;
+    public readonly Dictionary<string, TypeDefinition> Types;
+    public readonly Dictionary<string, FieldDefinition> Fields;
+    public readonly Dictionary<string, MethodDefinition[]> Methods;
+
+    public LoadedCAbiMetadata(
+        AssemblyDefinition assemblyDefinition,
+        Dictionary<string, TypeDefinition> types,
+        Dictionary<string, FieldDefinition> fields,
+        Dictionary<string, MethodDefinition[]> methods)
+    {
+        this.Assembly = assemblyDefinition;
+        this.Types = types;
+        this.Fields = fields;
+        this.Methods = methods;
+    }
+}
 
 internal static class CecilUtilities
 {
@@ -167,4 +187,107 @@ internal static class CecilUtilities
             MethodReference method => targetModule.SafeImport(method),
             _ => throw new InvalidOperationException(),
         };
+
+    public static LoadedCAbiMetadata LoadCAbiMetadataFromAssembly(
+        string assemblyPath,
+        CachedAssemblyResolver assemblyResolver)
+    {
+        var assembly = assemblyResolver.ReadAssemblyFrom(
+            assemblyPath);
+
+        static IEnumerable<TypeDefinition> IterateTypesDescendants(TypeDefinition type)
+        {
+            yield return type;
+
+            foreach (var childType in type.NestedTypes.Where(nestedType =>
+                nestedType.IsNestedPublic &&
+                (nestedType.IsClass || nestedType.IsInterface || nestedType.IsValueType || nestedType.IsEnum) &&
+                // Excepts all generic types because CABI does not support it.
+                !nestedType.HasGenericParameters).
+                SelectMany(IterateTypesDescendants))
+            {
+                yield return childType;
+            }
+        }
+
+        var targetTypes = assembly.Modules.
+            SelectMany(module => module.Types).
+            Where(type =>
+                type.IsPublic &&
+                (type.IsClass || type.IsInterface || type.IsValueType || type.IsEnum) &&
+                // Excepts all generic types because CABI does not support it.
+                !type.HasGenericParameters).
+            SelectMany(IterateTypesDescendants).
+            ToArray();
+
+        var types = targetTypes.
+            // Combine both CABI types and .NET types.
+            Where(type => type.Namespace is "C.type").
+            Select(type => (name: type.Name, type)).
+            Concat(targetTypes.
+                Select(type => (name: type.FullName.Replace('/', '.'), type))).
+            ToDictionary(entry => entry.name, entry => entry.type);
+
+        var targetFields = targetTypes.
+            Where(type => type is
+            {
+                IsPublic: true, IsClass: true,
+            } or
+            {
+                IsPublic: true, IsValueType: true, IsEnum: false,
+            }).
+            SelectMany(type => type.Fields).
+            Where(field => field is
+            {
+                IsPublic: true,
+            }).
+            ToArray();
+
+        var fields = targetFields.
+            // Combine both CABI variables and .NET fields.
+            Where(field => field.DeclaringType.FullName is "C.data" or "C.rdata").
+            Select(field => (name: field.Name, field)).
+            Concat(targetFields.
+                Select(field => (name: $"{field.DeclaringType.FullName}.{field.Name}", field))).
+            ToDictionary(entry => entry.name, entry => entry.field);
+
+        var targetMethods = targetTypes.
+            Where(type => type is
+            {
+                IsPublic: true, IsClass: true,
+            } or
+            {
+                IsPublic: true, IsValueType: true,
+            }).
+            SelectMany(type => type.Methods).
+            Where(method => method is
+            {
+                IsPublic: true,
+                // Excepts all generic methods because CABI does not support it.
+                HasGenericParameters: false
+            }).
+            ToArray();
+
+        var methods = targetMethods.
+            // Combine both CABI function and .NET methods.
+            Where(method =>
+                method.IsStatic &&
+                method.DeclaringType.FullName is "C.text").
+            Select(method => (name: method.Name, method)).
+            Concat(targetMethods.
+                Select(method =>
+                (
+                    name: $"{method.DeclaringType.FullName}.{method.Name}",
+                    method
+                ))).
+            GroupBy(
+                entry => entry.name,
+                entry => entry.method).
+            ToDictionary(
+                g => g.Key,
+                // Sorted descending longer parameters.
+                g => g.OrderByDescending(method => method.Parameters.Count).ToArray());
+
+        return new(assembly, types, fields, methods);
+    }
 }

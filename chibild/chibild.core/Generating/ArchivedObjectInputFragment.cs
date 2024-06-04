@@ -7,7 +7,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////
 
-using System;
+using chibicc.toolchain.Generating;
 using chibicc.toolchain.Archiving;
 using chibicc.toolchain.Parsing;
 using chibicc.toolchain.Logging;
@@ -57,19 +57,16 @@ internal sealed class ArchivedObjectInputFragment :
     private ArchivedObjectInputFragment(
         string baseInputPath,
         string relativePath,
-        string archivedObjectName,
-        Dictionary<string, Symbol> typeSymbols,
-        Dictionary<string, Symbol> variableSymbols,
-        Dictionary<string, Symbol> functionSymbols) :
+        AggregatedSymbols extraction) :
         base(baseInputPath, relativePath)
     {
-        this.archivedObjectName = archivedObjectName;
+        this.archivedObjectName = extraction.ObjectName;
         this.ObjectName = Path.GetFileNameWithoutExtension(this.archivedObjectName);
         this.ObjectPath = $"{this.archivedObjectName}@{base.ObjectPath}";
         
-        this.typeSymbols = typeSymbols;
-        this.variableSymbols = variableSymbols;
-        this.functionSymbols = functionSymbols;
+        this.typeSymbols = extraction.TypeSymbols;
+        this.variableSymbols = extraction.VariableSymbols;
+        this.functionSymbols = extraction.FunctionSymbols;
     }
 
     public override string ObjectName { get; }
@@ -162,14 +159,7 @@ internal sealed class ArchivedObjectInputFragment :
 
     //////////////////////////////////////////////////////////////
 
-    public enum LoadObjectResults
-    {
-        Ignored,
-        Loaded,
-        CaughtError,
-    }
-    
-    public LoadObjectResults LoadObjectIfRequired(
+    public override LoadObjectResults LoadObjectIfRequired(
         ILogger logger,
         bool isLocationOriginSource)
     {
@@ -227,7 +217,9 @@ internal sealed class ArchivedObjectInputFragment :
                 LoadObjectResults.CaughtError :
                 LoadObjectResults.Loaded;
         }
-        return LoadObjectResults.Ignored;
+
+        return this.requiredState == (int)RequiredStates.Loaded ?
+            LoadObjectResults.Loaded : LoadObjectResults.Ignored;
     }
 
     public static ArchivedObjectInputFragment[] Load(
@@ -239,42 +231,12 @@ internal sealed class ArchivedObjectInputFragment :
 
         var symbolLists = ArchiverUtilities.EnumerateSymbolTable(
             Path.Combine(baseInputPath, relativePath));
-        
-        return symbolLists.Select(symbolList =>
-        {
-            var symbols = symbolList.Symbols.
-                GroupBy(symbol =>
-                {
-                    switch (symbol.Directive)
-                    {
-                        case "enumeration": return "type";
-                        case "structure": return "type";
-                        case "global": return "variable";
-                        case "constant": return "variable";
-                        case "function": return "function";
-                        default:
-                            logger.Warning($"Ignored invalid symbol table entry: {symbol.Directive}");
-                            return "unknown";
-                    }
-                }).
-                ToDictionary(
-                    g => g.Key,
-                    g => g.
-                        // Takes largest member count.
-                        OrderByDescending(symbol => symbol.MemberCount ?? 0).
-                        DistinctBy(symbol => symbol.Name).
-                        ToDictionary(symbol => symbol.Name));
 
-            var empty = new Dictionary<string, Symbol>();
-            
-            return new ArchivedObjectInputFragment(
+        return SymbolAggregator.AggregateSymbolsFromSymbolTable(logger, symbolLists).
+            Select(extraction => new ArchivedObjectInputFragment(
                 baseInputPath,
                 relativePath,
-                symbolList.ObjectName,
-                symbols.TryGetValue("type", out var types) ? types : empty,
-                symbols.TryGetValue("variable", out var variableNames) ? variableNames : empty,
-                symbols.TryGetValue("function", out var functionNames) ? functionNames : empty);
-        }).
-        ToArray();
+                extraction)).
+            ToArray();
     }
 }
